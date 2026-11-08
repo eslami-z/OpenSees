@@ -97,6 +97,7 @@ jobs:
               ./build/Release/OpenSees
               ./build/Release/opensees.so
 
+  
   build-win:
     name: Build Windows VS2022
     runs-on: windows-2022
@@ -105,10 +106,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Microsoft Visual Studio
         uses: ilammy/msvc-dev-cmd@v1
         with:
           vsversion: 2022
+
       - name: Intel oneAPI Basic & HPC Toolkits
         shell: pwsh
         env:
@@ -120,33 +123,38 @@ jobs:
         run: |
           ./install_fortran.bat $env:WINDOWS_BASEKIT_URL $env:WINDOWS_BASEKIT_COMPONENTS
           ./install_fortran.bat $env:WINDOWS_HPCKIT_URL $env:WINDOWS_HPCKIT_COMPONENTS
+
       - name: Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install conan
         run: |
           pip install conan
-          conan profile detect --force	  
+          conan profile detect --force
+
       - name: MUMPS
         shell: cmd
         run: |
           git clone https://github.com/OpenSees/mumps.git
           cd mumps
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 mod
-          cmake -S . -B build -G Ninja -Darith=d -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded" -DCMAKE_EXE_LINKER_FLAGS="/link /FORCE:MULTIPLE"  -DCMAKE_SHARED_LINKER_FLAGS="/link /FORCE:MULTIPLE"	  
+          cmake -S . -B build -G Ninja -Darith=d -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded" -DCMAKE_EXE_LINKER_FLAGS="/link /FORCE:MULTIPLE" -DCMAKE_SHARED_LINKER_FLAGS="/link /FORCE:MULTIPLE"
           cd build
           cmake --build . --config Release
+
       - name: 2.2.2. Building the OpenSees Applications and Python module
         shell: cmd
         run: |
           set CMAKE_POLICY_VERSION_MINIMUM=3.5
           conan install . -s arch=x86_64 -s compiler.runtime=static --build=missing -c tools.cmake.cmaketoolchain:generator=Ninja
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 mod
-          cmake.exe -S . -B build/Release -G "Ninja"  -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded" -DCMAKE_Fortran_COMPILER="ifx" -DBLA_STATIC=ON  -DMKL_LINK=static -DMKL_INTERFACE_FULL=intel_lp64  -DMUMPS_DIR="..\..\mumps\build" -DCMAKE_EXE_LINKER_FLAGS="/FORCE:MULTIPLE" -DCMAKE_SHARED_LINKER_FLAGS="/FORCE:MULTIPLE" -DCMAKE_NINJA_FORCE_RESPONSE_FILE=ON
+          cmake.exe -S . -B build/Release -G "Ninja" -DCMAKE_TOOLCHAIN_FILE=build/Release/generators/conan_toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded" -DCMAKE_Fortran_COMPILER="ifx" -DBLA_STATIC=ON -DMKL_LINK=static -DMKL_INTERFACE_FULL=intel_lp64 -DMUMPS_DIR="..\..\mumps\build" -DCMAKE_EXE_LINKER_FLAGS="/FORCE:MULTIPLE" -DCMAKE_SHARED_LINKER_FLAGS="/FORCE:MULTIPLE" -DCMAKE_NINJA_FORCE_RESPONSE_FILE=ON
           cd build/Release
           cmake --build . --config Release --target OpenSees -j8
           cmake --build . --config Release --target OpenSeesPy -j8
+
       - name: Verification OpenSeesPySP
         shell: pwsh
         run: |
@@ -155,11 +163,28 @@ jobs:
           $env:PYTHONPATH = "./build/Release/"
           python -c "import sys; print(sys.path)"
           python ./EXAMPLES/ExamplePython/example_variable_analysis.py
+
+      - name: Package OpenSees with Tcl runtime
+        shell: pwsh
+        run: |
+          $init = Get-ChildItem "$env:USERPROFILE\.conan2" -Filter init.tcl -Recurse -File |
+            Select-Object -First 1
+
+          if (-not $init) {
+            throw "Tcl init.tcl not found in Conan cache."
+          }
+
+          $tclLib = $init.Directory.FullName
+
+          New-Item -ItemType Directory -Force -Path "package\bin", "package\lib\tcl8.6" | Out-Null
+
+          Copy-Item "build\Release\OpenSees.exe" "package\bin\"
+          Copy-Item "$tclLib\*" "package\lib\tcl8.6\" -Recurse -Force
+          Copy-Item "build\Release\libiomp5md.dll" "package\bin\"
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-            name: OpenSees_Windows
-            path: |
-              ./build/Release/OpenSees.exe
-              ./build/Release/opensees.pyd
-              ./build/Release/libiomp5md.dll
+          name: OpenSees_Windows
+          path: |
+            package/
