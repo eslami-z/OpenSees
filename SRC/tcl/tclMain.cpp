@@ -243,6 +243,7 @@ g3TclMain(int argc, char **argv, Tcl_AppInitProc * appInitProc, int rank, int np
 	fprintf(stderr,"\n\n");
 	fprintf(stderr,"         OpenSees -- Open System For Earthquake Engineering Simulation\n");
 	fprintf(stderr,"                 Pacific Earthquake Engineering Research Center\n");
+      fprintf(stderr,"                 Edited by Zahra Eslami\n");
 #ifdef OPENSEES_VERSION	
 	fprintf(stderr,"        Version %s %s (%s)\n\n", OPS_VERSION, WIN_ARCH, OPENSEES_VERSION);
 #else
@@ -506,4 +507,3 @@ g3TclMain(int argc, char **argv, Tcl_AppInitProc * appInitProc, int rank, int np
 
     return;
 }
-
